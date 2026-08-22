@@ -1,66 +1,84 @@
- [English](README.md) | [Español](README_ES.md) | [中文](README_CN.md)
-
-# PARTE 1 - Cómo crear su propio módulo
-
-Puede utilizar estos scripts para iniciar su proyecto:
-
-[Ejemplos de scripts](https://github.com/azerothcore/azerothcore-boilerplates)
-
-### ¿Cómo probar su módulo?
-
-Desactivar PCH (cabeceras pre-compiladas) e intentar compilar. Si ha olvidado algunas cabeceras, es hora de añadirlas. Para desactivar PCH, siga este [link](https://github.com/azerothcore/azerothcore-wotlk/wiki/CMake-options) y ponga `USE_COREPCH ` a 0 con Cmake.
-
--------------------------------------------------------
-
-# PARTE 2 - EJEMPLO DE UN README.md
-Recuerde que el README.md le explica al resto de las personas que es lo que hace su módulo. Recomendamos escribirlo en ingles quizás, aunque puede ser traducido luego a otros idiomas.
-
-# MI NUEVO MÓDULO (título)
-
-## Descripción
-
-Este módulo permite hacer esto y esto.
-(Debe explicar para que se va a utilizar el modulo, cuál es su utilidad)
-
-## Cómo utilizar
-
-Haz esto y aquello.
-
-Puedes agregar una carpeta de pantalla:
-
-[screenshot](/screenshots/my_module.png?raw=true "screenshot")
-
-O incluso un video donde expliques su uso:
-
-[Youtube](https://www.youtube.com/watch?v=T6UEX47mPeE)
+<p align="center">
+    <a href="https://github.com/mod-playerbots/mod-playerbots/blob/master/README.md">English</a>
+    |
+    <a href="https://github.com/mod-playerbots/mod-playerbots/blob/master/README_CN.md">中文</a>
+    |
+    <a href="https://github.com/mod-playerbots/mod-playerbots/blob/master/README_ES.md">Español</a>
+</p>
 
 
-## Requisitos
+<div align="center">
+  <img src="banner.png" alt="Playerbots Banner" width="700px">
+</div>
 
-Se debe especificar que versión de azerothcore requiere, porque podría ser incompatible con alguna más adelante. Entonces aclarar por las dudas su compatibilidad no está de más.
+<div align="center">
+    <img src="https://github.com/mod-playerbots/mod-playerbots/actions/workflows/macos_build.yml/badge.svg">
+    <img src="https://github.com/mod-playerbots/mod-playerbots/actions/workflows/core_build.yml/badge.svg">
+    <img src="https://github.com/mod-playerbots/mod-playerbots/actions/workflows/windows_build.yml/badge.svg">
+</div>
 
-Mi nuevo módulo requiere:
+# Módulo Playerbots
+`mod-playerbots` es un módulo de [AzerothCore](https://www.azerothcore.org/) que añade bots similares a jugadores a un servidor. El proyecto se basa en [Playerbots de IKE3](https://github.com/ike3/mangosbot).
 
-- AzerothCore v4.0.0+
+Las características incluyen:
 
+- La capacidad de iniciar sesión con personajes alternativos como bots, lo que permite a los jugadores interactuar con sus otros personajes, formar grupos, subir de nivel y más
+- Bots aleatorios que deambulan por el mundo, completan misiones y se comportan como jugadores, simulando la experiencia MMO
+- Bots capaces de realizar la mayoría de bandas y campos de batalla
+- Ajustes altamente configurables para definir cómo se comportan los bots
+- Rendimiento excelente, incluso cuando se ejecutan miles de bots
+
+¡También tenemos un **[servidor de Discord](https://discord.gg/NQm5QShwf9)** donde puedes discutir el proyecto, hacer preguntas e involucrarte en la comunidad!
 
 ## Instalación
 
+Las plataformas soportadas son Ubuntu, Windows y macOS. Otras distribuciones de Linux pueden funcionar, pero es posible que no reciban soporte.
+
+> **Importante:** Todas las instalaciones de `mod-playerbots` requieren un fork personalizado de AzerothCore: [mod-playerbots/azerothcore-wotlk (rama Playerbot)](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot). El repositorio estándar de AzerothCore **no** funcionará.
+
+### Inicio rápido
+
+```bash
+git clone [https://github.com/mod-playerbots/azerothcore-wotlk.git](https://github.com/mod-playerbots/azerothcore-wotlk.git) --branch=Playerbot
+cd azerothcore-wotlk/modules
+git clone [https://github.com/mod-playerbots/mod-playerbots.git](https://github.com/mod-playerbots/mod-playerbots.git) --branch=master
 ```
-1) Simplemente coloque el módulo dentro del directorio `modules` de AzerothCore (repositorio), no la compilación.
-2) Importe el SQL manualmente a la base de datos correcta (auth, mundo o caracteres) o con el `db_assembler.sh` (si se proporciona `include.sh`).
-3) Vuelva a ejecutar el Cmake y genere la compilación necesaria. (Revise la guía)
-```
 
-## Editar la configuración del módulo (opcional)
+Luego compila el servidor siguiendo las instrucciones específicas para cada plataforma en nuestra **[Guía de instalación](https://github.com/warcrafted-server/mod-playerbots/wiki/Installation-Guide)**.
 
-Si necesita cambiar la configuración del módulo, vaya a la carpeta de configuración de su servidor (donde está su `worldserver` o `worldserver.exe`), copie `my_module.conf.dist` a `my_module.conf` y edite ese nuevo archivo.
+> **Rama de pruebas:** Una rama `test-staging` está disponible con las últimas funciones y correcciones antes de que se fusionen en `master`. Para usarla, clona con `--branch=test-staging` en su lugar. Ten en cuenta que esta rama puede contener cambios inestables o que rompan la compatibilidad; úsala bajo tu propio riesgo y solo si te sientes cómodo solucionando problemas.
 
+### Guías detalladas
 
-## Créditos
+| Guía | Descripción |
+|---|---|
+| **[Guía de instalación](https://github.com/warcrafted-server/mod-playerbots/wiki/Installation-Guide)** | Instrucciones completas paso a paso para instalaciones limpias, migración desde un AzerothCore existente, configuración de Docker, adición de módulos y actualización |
+| **[Solución de problemas](https://github.com/warcrafted-server/mod-playerbots/wiki/Troubleshooting)** | Soluciones a los errores de compilación más comunes, problemas de bases de datos, errores de configuración, caídas del servidor y problemas específicos de la plataforma |
 
-* [Yo](https://github.com/YOUR_GITHUB_NAME) (autor del módulo) Edite el enlace para que apunte a su github si lo desea.
-* [BarbzYHOOL](https://github.com/barbzyhool) <!-- Puedes eliminar estas líneas, pero al crear un nuevo modulo, es notificado a estas personas, por lo que está bueno que eso ocurra. -->
-* [Talamortis](https://github.com/talamortis)<!-- Puedes eliminar estas líneas, pero al crear un nuevo modulo, es notificado a estas personas, por lo que está bueno que eso ocurra. -->
+Para referencias adicionales, consulta las páginas de la [Guía de instalación de AzerothCore](https://www.azerothcore.org/wiki/installation) e [Instalar un módulo](https://www.azerothcore.org/wiki/installing-a-module).
 
-AzerothCore: [repository](https://github.com/azerothcore) - [website](http://azerothcore.org/) - [discord chat community](https://discord.gg/PaqQRkd)
+## Documentación
+
+La [Wiki de Playerbots](https://github.com/warcrafted-server/mod-playerbots/wiki) contiene una visión general extensa de AddOns, comandos, bandas con estrategias de bots programadas y configuraciones de rendimiento recomendadas. Ten en cuenta que la documentación puede estar incompleta o desactualizada en algunas secciones, y las contribuciones son bienvenidas.
+
+Los bots se controlan mediante comandos de chat. Para grupos de bots más grandes, esto puede resultar incómodo. Por esta razón, miembros de la comunidad han desarrollado AddOns de cliente para permitir el control de los bots a través de la interfaz del juego. Te recomendamos consultar sus proyectos listados en la página de [AddOns y Submódulos](https://github.com/warcrafted-server/mod-playerbots/wiki/Playerbot-Addons-and-Sub%E2%80%90Modules).
+
+## Contribuir
+
+Este proyecto aún está en desarrollo. Animamos a cualquiera a realizar contribuciones, desde solicitudes de extracción (pull requests) hasta informar de problemas. Si encuentras algún error o experimentas caídas, te animamos a [notificarlos como problemas en GitHub](https://github.com/mod-playerbots/mod-playerbots/issues/new?template=bug_report.md). Tus valiosos comentarios nos ayudarán a mejorar este proyecto de manera colaborativa.
+
+Si realizas contribuciones de código, `mod-playerbots` cumple con los [Estándares de Código C++](https://www.azerothcore.org/wiki/cpp-code-standards) establecidos por AzerothCore. Cada Pull Request debe incluir todos los escenarios de prueba que el autor realizó, junto con sus resultados, para demostrar que los cambios se verificaron correctamente.
+
+Recomendamos unirse al [servidor de Discord](https://discord.gg/NQm5QShwf9) para facilitar tus contribuciones al proyecto, ya que gran parte del soporte activo se lleva a cabo a través de este servidor.
+
+¡Por favor, haz clic en el botón "⭐" para mantenerte al día y ayudarnos a ganar más visibilidad en GitHub!
+
+## Agradecimientos
+
+`mod-playerbots` se basa en [ZhengPeiRu21/mod-playerbots](https://github.com/ZhengPeiRu21/mod-playerbots) y [celguar/mangosbot-bots](https://github.com/celguar/mangosbot-bots). Expresamos nuestra gratitud a [@ZhengPeiRu21](https://github.com/ZhengPeiRu21) y [@celguar](https://github.com/celguar) por sus continuos esfuerzos en mantener el módulo.
+
+También, un agradecimiento a los muchos colaboradores que han ayudado a construir este proyecto:
+
+<a href="https://github.com/mod-playerbots/mod-playerbots/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mod-playerbots/mod-playerbots" />
+</a>
