@@ -3,7 +3,7 @@
     |
     <a href="https://github.com/mod-playerbots/mod-playerbots/blob/master/README_CN.md">中文</a>
     |
-    <a href="https://github.com/mod-playerbots/mod-playerbots/blob/master/README_ES.md">Español</a>
+    <a href="https://github.com/warcrafted-server/mod-playerbots/blob/master/README_ES.md">Español</a>
 </p>
 
 
