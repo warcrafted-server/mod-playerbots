@@ -977,6 +977,13 @@ private:
     void PrepareZone2LevelBracket();
     void PrepareDestinationCache();
 
+    // Terrain area ids per spawn position, persisted in `playerbots_area_cache`. Resolving one
+    // pulls its map and vmap tile off the disk, so walking the whole spawn table with a cold
+    // cache costs about a minute.
+    void LoadAreaIdCache();
+    void SaveAreaIdCache();
+    uint32 GetSpawnAreaId(Map* map, uint16 mapId, float x, float y, float z);
+
     // Internal types
     struct LevelBracket
     {
@@ -1001,6 +1008,12 @@ private:
     std::map<uint8, std::vector<WorldLocation>> locsPerLevelCache;
     std::unordered_map<uint32, std::vector<WorldLocation>> creatureSpawnsByTemplate;
     std::map<uint32, LevelBracket> zone2LevelBracket;
+
+    // Keyed by position rounded to the yard, so a spawn that gets moved misses the cache and is
+    // resolved again instead of keeping a stale area. Rows of spawns that no longer exist are
+    // just never looked up.
+    std::unordered_map<uint64, uint16> areaIdCache;
+    std::vector<uint64> areaIdCachePending;
 };
 
 #define sTravelMgr TravelMgr::instance()

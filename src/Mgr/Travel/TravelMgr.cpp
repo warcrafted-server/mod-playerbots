@@ -10,6 +10,7 @@
 #include "ChatHelper.h"
 #include "Corpse.h"
 #include "Creature.h"
+#include "DatabaseEnv.h"
 #include "Log.h"
 #include "Map.h"
 #include "MapCollisionData.h"
@@ -4635,6 +4636,94 @@ void TravelMgr::PrepareZone2LevelBracket()
         zone2LevelBracket[zoneId] = {bracketPair.first, bracketPair.second};
 }
 
+namespace
+{
+    // Map bounds keep x/y inside +-17066 and spawn heights inside +-32767, so a position rounded
+    // to the yard packs into three int16 next to the map id. A position outside that range gets
+    // AREA_KEY_INVALID, which cannot collide with a real one because map 0xFFFF does not exist.
+    constexpr uint64 AREA_KEY_INVALID = std::numeric_limits<uint64>::max();
+
+    uint64 PackAreaKey(uint16 mapId, int32 rx, int32 ry, int32 rz)
+    {
+        if (rx < INT16_MIN || rx > INT16_MAX || ry < INT16_MIN || ry > INT16_MAX || rz < INT16_MIN ||
+            rz > INT16_MAX)
+            return AREA_KEY_INVALID;
+
+        return (static_cast<uint64>(mapId) << 48) |
+               (static_cast<uint64>(static_cast<uint16>(static_cast<int16>(rx))) << 32) |
+               (static_cast<uint64>(static_cast<uint16>(static_cast<int16>(ry))) << 16) |
+               static_cast<uint64>(static_cast<uint16>(static_cast<int16>(rz)));
+    }
+
+    uint64 PackAreaKey(uint16 mapId, float x, float y, float z)
+    {
+        return PackAreaKey(mapId, static_cast<int32>(std::lround(x)), static_cast<int32>(std::lround(y)),
+                           static_cast<int32>(std::lround(z)));
+    }
+}
+
+void TravelMgr::LoadAreaIdCache()
+{
+    uint32 const oldMSTime = getMSTime();
+
+    QueryResult result =
+        PlayerbotsDatabase.Query("SELECT map_id, pos_x, pos_y, pos_z, area_id FROM playerbots_area_cache");
+    if (!result)
+    {
+        LOG_INFO("playerbots",
+                 "Area id cache is empty, reading spawn areas off the terrain. Slow on this start only.");
+        return;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+        uint64 key = PackAreaKey(fields[0].Get<uint16>(), fields[1].Get<int32>(), fields[2].Get<int32>(),
+                                 fields[3].Get<int32>());
+        if (key != AREA_KEY_INVALID)
+            areaIdCache[key] = fields[4].Get<uint16>();
+    } while (result->NextRow());
+
+    LOG_INFO("playerbots", ">> Loaded {} cached spawn areas in {} ms", areaIdCache.size(),
+             GetMSTimeDiffToNow(oldMSTime));
+}
+
+void TravelMgr::SaveAreaIdCache()
+{
+    if (areaIdCachePending.empty())
+        return;
+
+    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+    for (uint64 key : areaIdCachePending)
+    {
+        trans->Append("INSERT IGNORE INTO playerbots_area_cache (map_id, pos_x, pos_y, pos_z, area_id) VALUES "
+                      "({}, {}, {}, {}, {})",
+                      static_cast<uint16>((key >> 48) & 0xFFFF), static_cast<int16>((key >> 32) & 0xFFFF),
+                      static_cast<int16>((key >> 16) & 0xFFFF), static_cast<int16>(key & 0xFFFF),
+                      areaIdCache[key]);
+    }
+    PlayerbotsDatabase.CommitTransaction(trans);
+
+    LOG_INFO("playerbots", ">> Stored {} new spawn areas in the area id cache.", areaIdCachePending.size());
+    areaIdCachePending.clear();
+}
+
+uint32 TravelMgr::GetSpawnAreaId(Map* map, uint16 mapId, float x, float y, float z)
+{
+    uint64 key = PackAreaKey(mapId, x, y, z);
+    if (key == AREA_KEY_INVALID)
+        return map->GetAreaId(PHASEMASK_NORMAL, x, y, z);
+
+    auto cached = areaIdCache.find(key);
+    if (cached != areaIdCache.end())
+        return cached->second;
+
+    uint32 areaId = map->GetAreaId(PHASEMASK_NORMAL, x, y, z);
+    areaIdCache[key] = static_cast<uint16>(areaId);
+    areaIdCachePending.push_back(key);
+    return areaId;
+}
+
 void TravelMgr::PrepareDestinationCache()
 {
     uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
@@ -4643,6 +4732,9 @@ void TravelMgr::PrepareDestinationCache()
     uint32 bankerCount = 0;
 
     LOG_INFO("playerbots", "Preparing destination caches for {} levels...", maxLevel);
+
+    LoadAreaIdCache();
+
     // Temporary map to group creatures by entry and area
     std::map<std::tuple<uint16, int32, int32, int32>, std::vector<CreatureData>> tempLocsCache;
     std::map<uint32, std::map<uint32, std::vector<WorldLocation>>> tempCreatureCache;
@@ -4663,18 +4755,8 @@ void TravelMgr::PrepareDestinationCache()
         float orient = creatureData.orientation;
         uint32 templateEntry = creatureData.id;
 
-        Map* map = sMapMgr->FindMap(mapId, 0);
-        if (!map)
-            continue;
-
-        AreaTableEntry const* area = sAreaTableStore.LookupEntry(map->GetAreaId(PHASEMASK_NORMAL, x, y, z));
-        if (!area)
-            continue;
-
-        uint32 areaId = area->zone ? area->zone : area->ID;
-
         // CREATURES
-        if (creatureTemplate->npcflag == 0 &&
+        bool const isGrindTarget = creatureTemplate->npcflag == 0 &&
             creatureTemplate->lootid != 0 &&
             creatureTemplate->maxlevel - creatureTemplate->minlevel < 3 &&
             creatureTemplate->Entry != 32820 && creatureTemplate->Entry != 24196 &&
@@ -4685,7 +4767,39 @@ void TravelMgr::PrepareDestinationCache()
             creatureTemplate->faction != 188 && creatureTemplate->faction != 1575 &&
             (creatureTemplate->unit_flags & 256) == 0 &&
             (creatureTemplate->unit_flags & 4096) == 0 &&
-            creatureTemplate->rank == 0)
+            creatureTemplate->rank == 0;
+        // FLIGHT MASTERS
+        // Entry 29480 is Grimwing (Storm Peaks)
+        // Entry 3838 is Vesprystus in Rut'Theran. Need Travel Node system to resolve this one.
+        bool const isFlightMasterOrInnkeeper = (creatureTemplate->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER ||
+                                                creatureTemplate->npcflag & UNIT_NPC_FLAG_INNKEEPER) &&
+            creatureTemplate->Entry != 3838 && creatureTemplate->Entry != 29480;
+        // === BANKERS ===
+        bool const isBanker = creatureTemplate->npcflag & UNIT_NPC_FLAG_BANKER &&
+                 creatureTemplate->npcflag != 135298 &&
+                 creatureTemplate->minlevel != 55 &&
+                 creatureTemplate->minlevel != 65 &&
+                 creatureTemplate->faction != 35 && creatureTemplate->faction != 474 &&
+                 creatureTemplate->faction != 69 && creatureTemplate->faction != 57 &&
+                 creatureTemplate->Entry != 30606 && creatureTemplate->Entry != 30608 &&
+                 creatureTemplate->Entry != 29282;
+
+        // Resolving the zone reads the terrain, so leave it until the spawn is known to feed one of
+        // the caches below. Most spawns match none of them.
+        if (!isGrindTarget && !isFlightMasterOrInnkeeper && !isBanker)
+            continue;
+
+        Map* map = sMapMgr->FindMap(mapId, 0);
+        if (!map)
+            continue;
+
+        AreaTableEntry const* area = sAreaTableStore.LookupEntry(GetSpawnAreaId(map, mapId, x, y, z));
+        if (!area)
+            continue;
+
+        uint32 areaId = area->zone ? area->zone : area->ID;
+
+        if (isGrindTarget)
         {
             int32 roundX = static_cast<int32>(std::lround(x / 50.0f));
             int32 roundY = static_cast<int32>(std::lround(y / 50.0f));
@@ -4693,12 +4807,7 @@ void TravelMgr::PrepareDestinationCache()
             tempLocsCache[std::make_tuple(mapId, roundX, roundY, roundZ)].push_back(creatureData);
             tempCreatureCache[templateEntry][areaId].push_back(WorldLocation(mapId, x, y, z));
         }
-        // FLIGHT MASTERS
-        // Entry 29480 is Grimwing (Storm Peaks)
-        // Entry 3838 is Vesprystus in Rut'Theran. Need Travel Node system to resolve this one.
-        else if ((creatureTemplate->npcflag & UNIT_NPC_FLAG_FLIGHTMASTER ||
-                  creatureTemplate->npcflag & UNIT_NPC_FLAG_INNKEEPER) &&
-                creatureTemplate->Entry != 3838 && creatureTemplate->Entry != 29480)
+        else if (isFlightMasterOrInnkeeper)
         {
             FactionTemplateEntry const* factionEntry = sFactionTemplateStore.LookupEntry(creatureTemplate->faction);
             bool forHorde = !(factionEntry->hostileMask & 4);
@@ -4773,15 +4882,7 @@ void TravelMgr::PrepareDestinationCache()
                 }
             }
         }
-        // === BANKERS ===
-        else if (creatureTemplate->npcflag & UNIT_NPC_FLAG_BANKER &&
-                 creatureTemplate->npcflag != 135298 &&
-                 creatureTemplate->minlevel != 55 &&
-                 creatureTemplate->minlevel != 65 &&
-                 creatureTemplate->faction != 35 && creatureTemplate->faction != 474 &&
-                 creatureTemplate->faction != 69 && creatureTemplate->faction != 57 &&
-                 creatureTemplate->Entry != 30606 && creatureTemplate->Entry != 30608 &&
-                 creatureTemplate->Entry != 29282)
+        else if (isBanker)
         {
             BankerLocation bLoc;
             bLoc.loc = WorldLocation(mapId, x + cos(orient) * 6.0f, y + sin(orient) * 6.0f, z + 2.0f, orient + M_PI);
@@ -4870,5 +4971,7 @@ void TravelMgr::PrepareDestinationCache()
             break;
         }
     }
+    SaveAreaIdCache();
+
     LOG_INFO("playerbots", ">> {} flight masters and {} innkeepers and {} banker locations for level collected.", flightMastersCount, innkeepersCount, bankerCount);
 }
