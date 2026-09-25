@@ -166,6 +166,18 @@ void RandomBotLevelMgr::LogStartupSummary() const
                 ? "None"
                 : std::to_string(sPlayerbotAIConfig.resetBotLevelExcludeNames.size()) + " names");
     }
+
+    if (!sPlayerbotAIConfig.capBotLevelToPlayersEnabled)
+        LOG_INFO("playerbots", "[RandomBotLevelMgr] Cap bot level to players sub-feature disabled via configuration.");
+    else
+        LOG_INFO("playerbots",
+            "[RandomBotLevelMgr] Cap bot level to players loaded. Offset = {}, IgnoreGuildBotsWithRealPlayers = {}, "
+            "ExcludedNames = {}.",
+            static_cast<int>(sPlayerbotAIConfig.capBotLevelToPlayersOffset),
+            sPlayerbotAIConfig.capBotLevelToPlayersIgnoreGuildWithRealPlayers ? "Enabled" : "Disabled",
+            sPlayerbotAIConfig.capBotLevelToPlayersExcludeNames.empty()
+                ? "None"
+                : std::to_string(sPlayerbotAIConfig.capBotLevelToPlayersExcludeNames.size()) + " names");
 }
 
 // Clamps bracket bounds to [_randomBotMinLevel, _randomBotMaxLevel] and rebalances the desired
@@ -944,6 +956,51 @@ void RandomBotLevelMgr::Update(uint32 diff)
             RunResetPlayedTimeCheck();
         }
     }
+
+    if (sPlayerbotAIConfig.capBotLevelToPlayersEnabled)
+    {
+        _capBotLevelTimer += diff;
+        if (_capBotLevelTimer >= 60 * 1000)
+        {
+            _capBotLevelTimer = 0;
+            RefreshMaxRealPlayerLevel();
+        }
+    }
+}
+
+// Highest level any real player has reached since server startup. Monotonically non-decreasing by
+// design (matches AiPlayerbot.CapBotLevelToPlayers semantics: the bot level ceiling only ever
+// rises, it never drops because a high-level player went offline).
+void RandomBotLevelMgr::RefreshMaxRealPlayerLevel()
+{
+    for (auto const& itr : ObjectAccessor::GetPlayers())
+    {
+        Player* player = itr.second;
+        if (!player || !player->IsInWorld() || GET_PLAYERBOT_AI(player))
+            continue;
+
+        _maxRealPlayerLevel = std::max(_maxRealPlayerLevel, static_cast<uint8>(player->GetLevel()));
+    }
+}
+
+uint8 RandomBotLevelMgr::GetCapForBot(Player* bot) const
+{
+    if (!sPlayerbotAIConfig.capBotLevelToPlayersEnabled || _maxRealPlayerLevel == 0)
+        return 0;
+
+    if (IsNameInExcludeList(bot, sPlayerbotAIConfig.capBotLevelToPlayersExcludeNames))
+        return 0;
+
+    PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+    if (sPlayerbotAIConfig.capBotLevelToPlayersIgnoreGuildWithRealPlayers && botAI && botAI->IsInRealGuild())
+        return 0;
+
+    // A negative Offset can push the cap to or below 1 for a low-level real player (e.g. level 1
+    // player with Offset -1); floor it at 1 so the feature never fully freezes bot leveling.
+    int32 cap = static_cast<int32>(_maxRealPlayerLevel) + sPlayerbotAIConfig.capBotLevelToPlayersOffset;
+    cap = std::clamp(cap, 1, static_cast<int32>(sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL)));
+
+    return static_cast<uint8>(cap);
 }
 
 void RandomBotLevelMgr::OnBotLogin(Player* player)

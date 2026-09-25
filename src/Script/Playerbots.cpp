@@ -18,6 +18,7 @@
 #include "PlayerbotGuildMgr.h"
 #include "PlayerbotSpellRepository.h"
 #include "PlayerbotWorldThreadProcessor.h"
+#include "RandomBotLevelMgr.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 #include "cmath"
@@ -267,30 +268,45 @@ public:
 
     void OnPlayerGiveXP(Player* player, uint32& amount, Unit* /*victim*/, uint8 /*xpSource*/) override
     {
-        // early return
-        if (sPlayerbotAIConfig.randomBotXPRate == 1.0 || !player)
+        if (!player || !player->GetSession()->IsBot() || !sRandomPlayerbotMgr.IsRandomBot(player))
             return;
 
-        // no XP multiplier, when player is no bot.
-        if (!player->GetSession()->IsBot() || !sRandomPlayerbotMgr.IsRandomBot(player))
-            return;
-
-        // no XP multiplier, when bot is in a group with a real player.
-        if (Group* group = player->GetGroup())
+        if (sPlayerbotAIConfig.randomBotXPRate != 1.0)
         {
-            for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+            // no XP multiplier, when bot is in a group with a real player.
+            bool inRealGroup = false;
+            if (Group* group = player->GetGroup())
             {
-                Player* member = gref->GetSource();
-                if (!member)
-                    continue;
-
-                if (!member->GetSession()->IsBot())
-                    return;
+                for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+                {
+                    Player* member = gref->GetSource();
+                    if (member && !member->GetSession()->IsBot())
+                    {
+                        inRealGroup = true;
+                        break;
+                    }
+                }
             }
+
+            if (!inRealGroup)
+                amount =
+                    static_cast<uint32>(std::round(static_cast<float>(amount) * sPlayerbotAIConfig.randomBotXPRate));
         }
 
-        // otherwise apply bot XP multiplier.
-        amount = static_cast<uint32>(std::round(static_cast<float>(amount) * sPlayerbotAIConfig.randomBotXPRate));
+        // Cap ongoing leveling to the highest real player level ever seen, plus a configurable
+        // offset, so random bots never outpace real players by more than that margin.
+        if (uint8 cap = RandomBotLevelMgr::instance().GetCapForBot(player))
+        {
+            if (player->GetLevel() >= cap)
+            {
+                amount = 0;
+            }
+            else if (player->GetLevel() == cap - 1)
+            {
+                uint32 xpToCap = player->GetUInt32Value(PLAYER_NEXT_LEVEL_XP) - player->GetUInt32Value(PLAYER_XP);
+                amount = std::min(amount, xpToCap);
+            }
+        }
     }
 };
 

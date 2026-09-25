@@ -1,6 +1,12 @@
 !.gitignore
 
 #
+# AI assistant local files (not published)
+#
+CLAUDE.md
+.claude/
+
+#
 #Generic
 #
 

@@ -513,6 +513,14 @@ public:
     bool resetBotLevelIgnoreGuildWithRealPlayers;
     std::vector<std::string> resetBotLevelExcludeNames;
 
+    // Caps ongoing XP gain for random bots to the highest level any real player has ever reached,
+    // plus Offset (may be negative, e.g. -1 to keep bots strictly below that level). See
+    // RandomBotLevelMgr.
+    bool capBotLevelToPlayersEnabled;
+    int8 capBotLevelToPlayersOffset;
+    bool capBotLevelToPlayersIgnoreGuildWithRealPlayers;
+    std::vector<std::string> capBotLevelToPlayersExcludeNames;
+
 private:
     PlayerbotAIConfig() = default;
     ~PlayerbotAIConfig() = default;

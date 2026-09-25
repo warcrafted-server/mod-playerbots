@@ -86,8 +86,8 @@ AiPlayerbot.Enabled = 1
 AiPlayerbot.RandomBotAutologin = 1
 
 # Randombot count
-AiPlayerbot.MinRandomBots = 500
-AiPlayerbot.MaxRandomBots = 500
+AiPlayerbot.MinRandomBots = 200
+AiPlayerbot.MaxRandomBots = 200
 
 # Randombot accounts
 # Set to 0 to automatically calculate needed accounts based on MaxRandomBots, EnablePeriodicOnlineOffline
@@ -747,12 +747,13 @@ AiPlayerbot.RandomBotJoinLfg = 1
 # Enable/Disable periodic online - offline of randombots to mimic the real-world scenario where not all players are online simultaneously
 # When enabled, randombots are randomly selected to go online or offline periodically from a larger set
 # Default: 0 (disabled, the set of online bots remains fixed)
-AiPlayerbot.EnablePeriodicOnlineOffline = 0
+AiPlayerbot.EnablePeriodicOnlineOffline = 1
 
 # Defines the ratio between the total number of randombots (including offline ones) and the number of randombots currently online (MaxRandomBots)
 # This setting must greater than 1.0 and only applies when EnablePeriodicOnlineOffline
 # Default: 2.0 (total number of bots is twice the number of MaxRandomBots)
-AiPlayerbot.PeriodicOnlineOfflineRatio = 2.0
+# Set to 10.0 with MaxRandomBots = 200 for a pool of 2000 bots total, 200 online at a time.
+AiPlayerbot.PeriodicOnlineOfflineRatio = 10.0
 
 # Percentage ratio of Alliance and Horde randombots
 AiPlayerbot.RandomBotAllianceRatio = 50
@@ -1129,6 +1130,38 @@ AiPlayerbot.ResetBotLevel.IgnoreGuildBotsWithRealPlayers = 0
 # character name exactly (character names are stored capitalized, e.g. "Thrall").
 # Default: "" (empty)
 AiPlayerbot.ResetBotLevel.ExcludeNames =
+
+##############################################
+# Cap Bot Level To Players
+##############################################
+# Caps ongoing random bot leveling (from XP gained via quests/kills) to the highest level any real
+# (non-bot) player has reached since server startup, plus Offset. Unlike SyncLevelWithPlayers
+# (which only limits the level rolled for brand-new/re-randomized bots), this also stops bots that
+# are already leveling normally from exceeding the cap. The cap only ever rises as real players
+# reach higher levels; it does not lower if a high-level player later goes offline.
+#
+# Bots at or above the cap simply stop gaining XP until real players progress further. This is not
+# a level reset: bots already above the cap when this is enabled are left alone, and no bot is ever
+# forcibly leveled up or down by this feature.
+#
+# Default: 0 (disabled)
+AiPlayerbot.CapBotLevelToPlayers.Enabled = 1
+
+# How many levels above the highest real player level bots are allowed to reach. Negative values
+# keep bots strictly below that level (e.g. -1 means bots cap out one level below the highest real
+# player). Always clamped between 1 and the server's max player level regardless of this value.
+# Valid range: -5 to 5
+# Default: 3
+AiPlayerbot.CapBotLevelToPlayers.Offset = -1
+
+# When enabled, bots in a guild led by a real (non-bot) player are excluded from this cap.
+# Default: 0 (disabled)
+AiPlayerbot.CapBotLevelToPlayers.IgnoreGuildBotsWithRealPlayers = 0
+
+# Comma-separated list of bot names to exclude from this cap. Names must match the character name
+# exactly (character names are stored capitalized, e.g. "Thrall").
+# Default: "" (empty)
+AiPlayerbot.CapBotLevelToPlayers.ExcludeNames =
 
 #
 #

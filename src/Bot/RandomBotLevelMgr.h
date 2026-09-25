@@ -38,6 +38,17 @@ public:
     void OnBotLevelChanged(Player* player, uint8 oldLevel);
     void OnPlayerLogout(Player* player);
 
+    // Highest level any real (non-bot) player has reached since server startup (never decreases),
+    // or 0 if none seen yet. Used to cap ongoing bot XP gain (AiPlayerbot.CapBotLevelToPlayers.*);
+    // unrelated to RandomPlayerbotMgr's own playersLevel tracker, which already bakes in a
+    // different offset and is used only to cap freshly-created bots.
+    uint8 GetMaxRealPlayerLevel() const { return _maxRealPlayerLevel; }
+
+    // Max level `bot` is currently allowed to gain XP towards under AiPlayerbot.CapBotLevelToPlayers,
+    // or 0 if the feature is disabled, no real player level has been observed yet, or this bot is
+    // exempt (name-excluded, or in a real player's guild when configured to ignore those).
+    uint8 GetCapForBot(Player* bot) const;
+
 private:
     RandomBotLevelMgr() = default;
     ~RandomBotLevelMgr() = default;
@@ -77,6 +88,11 @@ private:
     void ResetBot(Player* player, uint8 currentLevel);
     void SkipBotLevel(Player* player, uint8 currentLevel);
     void RunResetPlayedTimeCheck();
+
+    // ---- Cap bot level to players sub-feature ----
+    void RefreshMaxRealPlayerLevel();
+    uint8 _maxRealPlayerLevel = 0;
+    uint32 _capBotLevelTimer = 0;
 
     // Level brackets: working copies, since dynamic distribution and the clamp/rebalance pass
     // mutate percentages at runtime and must never write back into PlayerbotAIConfig.

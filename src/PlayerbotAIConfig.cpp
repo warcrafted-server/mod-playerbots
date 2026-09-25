@@ -937,6 +937,25 @@ void PlayerbotAIConfig::LoadRandomBotLevelConfig()
 
     ParseLevelMgrExcludeNames(sConfigMgr->GetOption<std::string>("AiPlayerbot.ResetBotLevel.ExcludeNames", ""),
         resetBotLevelExcludeNames);
+
+    // ---- Cap bot level to players ----
+    capBotLevelToPlayersEnabled = sConfigMgr->GetOption<bool>("AiPlayerbot.CapBotLevelToPlayers.Enabled", false);
+
+    capBotLevelToPlayersOffset =
+        static_cast<int8>(sConfigMgr->GetOption<int32>("AiPlayerbot.CapBotLevelToPlayers.Offset", 3));
+    if (capBotLevelToPlayersOffset < -5 || capBotLevelToPlayersOffset > 5)
+    {
+        LOG_ERROR("server.loading",
+            "[RandomBotLevelMgr] Invalid AiPlayerbot.CapBotLevelToPlayers.Offset value: {}. Using default value 3.",
+            capBotLevelToPlayersOffset);
+        capBotLevelToPlayersOffset = 3;
+    }
+
+    capBotLevelToPlayersIgnoreGuildWithRealPlayers =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.CapBotLevelToPlayers.IgnoreGuildBotsWithRealPlayers", false);
+
+    ParseLevelMgrExcludeNames(sConfigMgr->GetOption<std::string>("AiPlayerbot.CapBotLevelToPlayers.ExcludeNames", ""),
+        capBotLevelToPlayersExcludeNames);
 }
 
 bool PlayerbotAIConfig::IsInRandomAccountList(uint32 id)
