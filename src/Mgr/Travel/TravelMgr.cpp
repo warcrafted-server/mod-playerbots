@@ -4662,22 +4662,50 @@ namespace
     }
 }
 
-// Disabled: this pair persisted areaIdCache in a "playerbots_area_cache" table via a
-// "PlayerbotsDatabase" pool that was never implemented anywhere (neither this module nor the
-// core declare it), so any build hitting this file fails at compile time. The in-memory cache in
-// GetSpawnAreaId() below still gives the fast path within a single run; only cross-restart
-// persistence is lost, meaning every server start re-resolves areas off the terrain (slow, but
-// correct). To bring persistence back: add a PlayerbotsDatabase connection pool (see
-// DatabaseEnv.h's WorldDatabase/CharacterDatabase for the pattern) and the
-// data/sql/playerbots-area-cache table, then restore the bodies below from git history
-// (see commit a4cf652f).
 void TravelMgr::LoadAreaIdCache()
 {
-    LOG_INFO("playerbots", "Area id cache persistence is disabled, reading spawn areas off the terrain.");
+    uint32 const oldMSTime = getMSTime();
+
+    QueryResult result =
+        PlayerbotsDatabase.Query("SELECT map_id, pos_x, pos_y, pos_z, area_id FROM playerbots_area_cache");
+    if (!result)
+    {
+        LOG_INFO("playerbots",
+                 "Area id cache is empty, reading spawn areas off the terrain. Slow on this start only.");
+        return;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+        uint64 key = PackAreaKey(fields[0].Get<uint16>(), fields[1].Get<int32>(), fields[2].Get<int32>(),
+                                 fields[3].Get<int32>());
+        if (key != AREA_KEY_INVALID)
+            areaIdCache[key] = fields[4].Get<uint16>();
+    } while (result->NextRow());
+
+    LOG_INFO("playerbots", ">> Loaded {} cached spawn areas in {} ms", areaIdCache.size(),
+             GetMSTimeDiffToNow(oldMSTime));
 }
 
 void TravelMgr::SaveAreaIdCache()
 {
+    if (areaIdCachePending.empty())
+        return;
+
+    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+    for (uint64 key : areaIdCachePending)
+    {
+        trans->Append("INSERT IGNORE INTO playerbots_area_cache (map_id, pos_x, pos_y, pos_z, area_id) VALUES "
+                      "({}, {}, {}, {}, {})",
+                      static_cast<uint16>((key >> 48) & 0xFFFF), static_cast<int16>((key >> 32) & 0xFFFF),
+                      static_cast<int16>((key >> 16) & 0xFFFF), static_cast<int16>(key & 0xFFFF),
+                      areaIdCache[key]);
+    }
+    PlayerbotsDatabase.CommitTransaction(trans);
+
+    LOG_INFO("playerbots", ">> Stored {} new spawn areas in the area id cache.", areaIdCachePending.size());
+    areaIdCachePending.clear();
 }
 
 uint32 TravelMgr::GetSpawnAreaId(Map* map, uint16 mapId, float x, float y, float z)
@@ -4692,6 +4720,7 @@ uint32 TravelMgr::GetSpawnAreaId(Map* map, uint16 mapId, float x, float y, float
 
     uint32 areaId = map->GetAreaId(PHASEMASK_NORMAL, x, y, z);
     areaIdCache[key] = static_cast<uint16>(areaId);
+    areaIdCachePending.push_back(key);
     return areaId;
 }
 
