@@ -18,6 +18,7 @@
 #include "ObjectAccessor.h"
 #include "PathGenerator.h"
 #include "Playerbots.h"
+#include "PlayerbotsDatabase.h"
 #include "RaceMgr.h"
 #include "Talentspec.h"
 #include "TransportMgr.h"
