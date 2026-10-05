@@ -62,3 +62,5 @@ local.properties
 #
 .agents/plans/**
 .claude/settings.local.json
+agentrelay.config.json
+.agentrelay/
